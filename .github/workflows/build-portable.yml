@@ -1,0 +1,56 @@
+
+name: Build PhotoCraft Portable
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout PhotoCraft
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Checkout craft-fonts
+        uses: actions/checkout@v4
+        with:
+          repository: storytold/craft-fonts
+          ref: b076417b5880bd4154bd22f00695b1d28c6bea83
+          path: craft-fonts
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install WiX
+        shell: pwsh
+        run: |
+          dotnet tool install --global wix --version 5.0.2
+          wix extension add -g WixToolset.UI.wixext/5.0.2 WixToolset.Util.wixext/5.0.2
+
+      - name: Build portable package
+        shell: pwsh
+        env:
+          CRAFT_FONTS_DIR: ${{ github.workspace }}\craft-fonts
+          CRAFT_FONTS_REQUIRED: "1"
+          PHOTOCRAFT_BUILD_SHA: ${{ github.sha }}
+          PHOTOCRAFT_BUILD_DATE: ${{ github.run_id }}
+        run: |
+          $env:PHOTOCRAFT_BUILD_DATE = (Get-Date).ToUniversalTime().ToString("yyyy-MM-dd")
+          pwsh packaging/windows/package.ps1 -Arch x64
+
+      - name: Upload portable ZIP
+        uses: actions/upload-artifact@v4
+        with:
+          name: PhotoCraft-Windows-x64-Portable
+          path: dist/release/*-windows-x64-portable.zip
+          if-no-files-found: error
+          retention-days: 30
